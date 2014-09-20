@@ -1,7 +1,7 @@
 ---
 title: "No pain, no gain"
 author: "blackCatMargarita"
-date: "Sunday, August 24, 2014"
+date: "September 20, 2014"
 output: html_document
 ---
 ### Assignment
