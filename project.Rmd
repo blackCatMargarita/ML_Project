@@ -1,0 +1,100 @@
+---
+title: "No pain, no gain"
+author: "blackCatMargarita"
+date: "Sunday, August 24, 2014"
+output: html_document
+---
+### Assignment
+
+The goal of this project is to classify the manner in which a weightlifting exercise was performed based on motion data recorded from six participants performing five variations of exercises (Source data taken from http://groupware.les.inf.puc-rio.br/har). 
+
+```{r echo=FALSE}
+setwd("~/DataScience/Machine Learning")
+```
+
+
+### Preprocessing and Data Slicing
+
+The training data and test data are both preprocessed in the same manner to achieve optimal results.  As the data is read in from the csv file, NA values are assigned to blank cells in addition to cells containing "NA" strings.
+
+```{r}
+#load data
+trainData <- read.csv("pml-training.csv", na.strings=c("","NA"))
+testData <- read.csv("pml-testing.csv", na.strings=c("","NA"))
+```
+
+The columns in each data set containing at least 95% cells with NA values are removed, since they would not be useful as predictors.  In addition, the columns containing time series data or identifiers for the test subjects are removed since they are not expected to be of use for the prediction model.  Finally, the classification label is assigned to the variable, classCol.
+
+```{r}
+# remove columns with 95% NAs or blanks (set to NA during import)
+trainData <- trainData[,colSums(is.na(trainData))<0.95*nrow(trainData)]
+testData <- testData[,colSums(is.na(testData))<0.95*nrow(testData)]
+
+# remove columns related to time series and participant name (first 6 columns)
+trainData <- trainData[,8:ncol(trainData)]
+testData <- testData[,8:ncol(testData)]
+
+# identify column with result 
+classCol <- which(names(trainData)=="classe")
+```
+
+Load the caret package, which will be needed during the exploratory and training process.
+
+```{r message=FALSE }
+library(caret)
+```
+
+One option considered was to standardize the predictor data, but the model performed extremely well without any standardization in the preprocessing steps.  The following code is unused in training the model, but included for consideration.
+
+```{r}
+# Standardize (zero mean unit variance)
+preObjNorm <- preProcess(trainData[,-classCol], method=c("center","scale"))
+trainNorm <- predict(preObjNorm, trainData[,-classCol])
+```
+
+### Plot data to explore
+
+The variable data didn't show any especially strong relationships from what I could tell after using featurePlot functions with plot types of "box" and "strip."  Only a subsection of the plots is shown here  for demonstration. I decided to move forward with model generation using all the variables.  
+
+```{r}
+# box plots didn't seem that interesting, so not displaying all in html doc
+featurePlot(x=trainNorm[,1:16], y = trainData$classe, plot="box")
+```
+
+```{r echo=FALSE, eval=FALSE}
+featurePlot(x=trainData[,17:32], y = trainData$classe, plot="box")
+featurePlot(x=trainData[,33:52], y = trainData$classe, plot="box")
+# some strip plots, use standardized data for better visualization
+featurePlot(x=trainData[,1:16], y = trainData$classe, plot="strip")
+featurePlot(x=trainNorm[,17:32], y = trainData$classe, plot="strip")
+featurePlot(x=trainNorm[,33:52], y = trainData$classe, plot="strip")
+```
+
+### Train with cross validation folds
+
+As an initial trial, I used 10 folds for cross validation in the training function of a random forest algorithm.  The outcome is the "classe" variable and all the remaining variables are being used as predictors (`r ncol(trainData)-1`).  I decided on random forest due to its tendency to produce highly accurate models even though it is somewhat time consuming to train.
+
+``` {r, cache=TRUE}
+if (!file.exists("rfModel.save")) {
+    modelFit <- train(classe ~., data=trainData, method="rf", trControl = trainControl(method="cv", number=10))
+    save(modelFit, file="rfModel.save")
+} else {
+  load("rfModel.save")
+}
+modelFit
+```
+
+### Out of Sample Error Estimate
+
+The estimated out of sample error is generated during the cross-validation method implemented in the random forest train function as part of the caret package, so there is no need to build the error estimate from a separate validation test set (from the training data).  Therefore, the best performing model estimates a 99.5 % (rounds to 1 in html doc output) accuracy meaning that the estimated error for the test set (based on out of sample error) is less than **1 %**.  Based on these results, I did not train additional models and moved forward with the prediction phase.
+
+
+### Predict Results for Test Set
+
+Finally, the results are found by using the predict function with the random forest model developed with the training set.
+
+```{r message=FALSE}
+pred <- predict(modelFit, testData[,-classCol])
+pred
+```
+
